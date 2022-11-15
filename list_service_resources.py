@@ -1,8 +1,5 @@
-import logging
-import sys
 
-import boto3
-import re
+import logging
 
 from botocore.exceptions import ClientError
 
@@ -11,25 +8,24 @@ def aws_services_by_resource(aws_sess):
     """Get available services as boto3 resources (that means they can be used as python objects)
     :param aws_sess: established boto3 Session object
     """
+    logger = logging.getLogger()
 
     # https://boto3.amazonaws.com/v1/documentation/api/latest/_modules/boto3/session.html#Session.get_available_services
     aws_resources = aws_sess.get_available_resources()
 
-    if run_config.debug:
-        print(aws_resources)
+    logger.debug(aws_resources)
 
     # for region get services, store in dictionary of Service -> regions_where_service_is_available
     aws_service_list = dict()
     for aws_resource in aws_resources:
         aws_service_list[aws_resource] = aws_sess.get_available_regions(aws_resource)
 
-    if run_config.debug:
-        print('\n'.join(f'{srvc}: {rgns}' for srvc, rgns in aws_service_list.items()))
+    logger.debug('\n'.join(f'{srvc}: {rgns}' for srvc, rgns in aws_service_list.items()))
 
     for service_name, region_list in aws_service_list.items():
         for service_region in region_list:
             try:
-                print(f'{service_name}: {service_region}: ')
+                logger.info(f'{service_name}: {service_region}: ')
                 # set up the service_resource as an object of service_name in a region.
                 service_resource = aws_sess.resource(service_name, region_name=service_region)
 
@@ -54,20 +50,4 @@ def aws_services_by_resource(aws_sess):
                 # TODO there are several other boto3 resource based services, implementation left to the reader.
 
             except ClientError as e:
-                print(f'Account Not Enabled in {service_region}')
-
-
-def main():
-    if config.debug:
-        boto3.set_stream_logger('botocore', logging.DEBUG)
-
-    # setup Session for our connection
-    aws_session = boto3.session.Session(region_name='us-east-1', profile_name='donald')
-
-    # first list by resource
-    aws_services_by_resource(aws_session)
-
-
-if '__main__' == __name__:
-    config = Config(sys.argv)  # Argparse would be another way to do this
-    main()
+                logger.warning(f'Account may not be enabled in {service_region}. Error: {e}')
